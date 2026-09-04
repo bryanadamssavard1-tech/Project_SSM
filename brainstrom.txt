@@ -33,6 +33,7 @@ combo attack ***
 shield poke *
 respawn ***
 timer + vie ***
+GLOW DES PERSONNAGES ***
 
 UI:
 entre en scene *
