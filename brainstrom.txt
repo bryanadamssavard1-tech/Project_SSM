@@ -62,8 +62,8 @@ sci-fi toiletmech /tank **
 Paragon: Riktor /tank**
 Paragon: Gadget/survivor **
 whisper /leger **
-
-
+paragon:grux/tank**
+paragon:crunch**
 
 classe de personnages:
 tank***
@@ -74,3 +74,4 @@ survivor(vol)***
 
 effet niagara:
 niagara exemples pack
+realistic stater vfx pack vol 2
