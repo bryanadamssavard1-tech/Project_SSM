@@ -29,13 +29,13 @@ Le bouclier***
 ukemi*
 shifting attack **
 fast falling *
-combo attack ***
+combo attack *** EN COURS ...
 shield poke *
 respawn ***
 timer + vie ***
 GLOW DES PERSONNAGES ***
 
-UI:
+UI: **
 entre en scene *
 winner *
 selection personnages ***
@@ -44,7 +44,7 @@ random selection ***
 random portal/ regular *
 changer couleur personnages*
 
-map: 
+map:
 creation portail 
 
 personnages:
