@@ -7,6 +7,10 @@
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/Text/STextBlock.h"
 #include "Widgets/Layout/SBorder.h"
+#include "Engine/Texture2D.h"
+#include "Widgets/Images/SImage.h"
+#include "Styling/SlateBrush.h"
+
 void USmashGameInstance::Init()
 {
 	Super::Init();
@@ -21,18 +25,30 @@ void USmashGameInstance::BeginLoadingScreen(const FString& MapName)
 	UE_LOG(LogTemp, Warning, TEXT("lOADING screen started"));
 
 	FLoadingScreenAttributes LoadingScreen;	
+	LoadingBackgroundTexture = LoadObject<UTexture2D>(
+		nullptr,
+		TEXT("/Game/Project/UI/LoadingScreen/lightning-mcqueen--26021.lightning-mcqueen--26021")
+	);
+	// LOADING SCREEN - CREATE BACKGROUND BRUSH
 
 	LoadingScreen.bAutoCompleteWhenLoadingCompletes = true;
-	LoadingScreen.MinimumLoadingScreenDisplayTime = 10.0f; // Set the minimum display time for the loading screen (in seconds)
-	LoadingScreen.WidgetLoadingScreen = 
-	SNew(SBorder)
+	LoadingScreen.MinimumLoadingScreenDisplayTime = 1.0f; // Set the minimum display time for the loading screen (in seconds)
+	LoadingScreen.WidgetLoadingScreen =
+		SNew(SBorder)
 		.BorderBackgroundColor(FLinearColor::Black)
 		.HAlign(HAlign_Center)
 		.VAlign(VAlign_Center)
 		[
 			SNew(STextBlock)
-			.Text(FText::FromString(TEXT("Loading...")))
+				.Text(FText::FromString(TEXT("LOADING...")))
 		];
+	LoadingBackgroundBrush = MakeShared<FSlateBrush>();
+
+	LoadingBackgroundBrush->SetResourceObject(LoadingBackgroundTexture);
+	LoadingBackgroundBrush->ImageSize = FVector2D(1920.0f, 1080.0f);
+	LoadingScreen.WidgetLoadingScreen =
+		SNew(SImage)
+		.Image(LoadingBackgroundBrush.Get());
 	if (!GetMoviePlayer())
 		{
 		UE_LOG(LogTemp, Warning, TEXT("Movie Player is not available"));
