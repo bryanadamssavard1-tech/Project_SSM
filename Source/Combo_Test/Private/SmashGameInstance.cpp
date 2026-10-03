@@ -6,6 +6,7 @@
 #include "UObject/UObjectGlobals.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/Text/STextBlock.h"
+#include "Widgets/Layout/SBorder.h"
 void USmashGameInstance::Init()
 {
 	Super::Init();
@@ -23,19 +24,29 @@ void USmashGameInstance::BeginLoadingScreen(const FString& MapName)
 
 	LoadingScreen.bAutoCompleteWhenLoadingCompletes = true;
 	LoadingScreen.MinimumLoadingScreenDisplayTime = 10.0f; // Set the minimum display time for the loading screen (in seconds)
-	LoadingScreen.WidgetLoadingScreen = SNew(SVerticalBox)
-		+ SVerticalBox::Slot()
+	LoadingScreen.WidgetLoadingScreen = 
+	SNew(SBorder)
+		.BorderBackgroundColor(FLinearColor::Black)
 		.HAlign(HAlign_Center)
 		.VAlign(VAlign_Center)
 		[
 			SNew(STextBlock)
-				.Text(FText::FromString(TEXT("Loading...")))
+			.Text(FText::FromString(TEXT("Loading...")))
 		];
-	
-
+	if (!GetMoviePlayer())
+		{
+		UE_LOG(LogTemp, Warning, TEXT("Movie Player is not available"));
+		return;
+	}
+	UE_LOG(LogTemp, Warning, TEXT("Movie Player is available"));
 
 	GetMoviePlayer()->SetupLoadingScreen(LoadingScreen);
 	GetMoviePlayer()->PlayMovie();
+	UE_LOG(LogTemp, Warning, TEXT("Movie Player Play Called"));
+
+		
+		
+	
 }
 void USmashGameInstance::EndLoadingScreen(UWorld* LoadedWorld)
 {
