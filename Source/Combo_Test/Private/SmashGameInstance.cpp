@@ -14,11 +14,25 @@
 void USmashGameInstance::Init()
 {
 	Super::Init();
+	// LOADING SCREEN - PRELOAD BACKGROUND TEXTURE
+	LoadingBackgroundTexture = LoadObject<UTexture2D>(
+		nullptr,
+		TEXT("/Game/Project/UI/LoadingScreen/lightning-mcqueen--26021.lightning-mcqueen--26021")
+	);
+
+	if (LoadingBackgroundTexture)
+	{
+		LoadingBackgroundTexture->UpdateResource();
+	}
 	FCoreUObjectDelegates::PreLoadMap.AddUObject(this, &USmashGameInstance::BeginLoadingScreen);
 	FCoreUObjectDelegates::PostLoadMapWithWorld.AddUObject(this, &USmashGameInstance::EndLoadingScreen);
 }
 void USmashGameInstance::BeginLoadingScreen(const FString& MapName)
 {
+	if (!MapName.Contains(TEXT("test")))
+	{
+		return;
+	}
 	// Start the loading screen
 	// You can customize this function to show your own loading screen widget or animation
 
