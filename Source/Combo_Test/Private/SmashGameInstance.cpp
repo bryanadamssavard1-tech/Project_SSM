@@ -10,15 +10,17 @@
 #include "Engine/Texture2D.h"
 #include "Widgets/Images/SImage.h"
 #include "Styling/SlateBrush.h"
+#include "Widgets/SOverlay.h"
+#include "Widgets/Images/SThrobber.h"
+#include "Widgets/Notifications/SProgressBar.h"
+#include "Misc/Optional.h"
+#include "Widgets/Layout/SBox.h"
+#include "Widgets/Colors/SColorBlock.h"
 
 void USmashGameInstance::Init()
 {
 	Super::Init();
 	// LOADING SCREEN - PRELOAD BACKGROUND TEXTURE
-	LoadingBackgroundTexture = LoadObject<UTexture2D>(
-		nullptr,
-		TEXT("/Game/Project/UI/LoadingScreen/lightning-mcqueen--26021.lightning-mcqueen--26021")
-	);
 
 	if (LoadingBackgroundTexture)
 	{
@@ -29,6 +31,7 @@ void USmashGameInstance::Init()
 }
 void USmashGameInstance::BeginLoadingScreen(const FString& MapName)
 {
+
 	if (!MapName.Contains(TEXT("test")))
 	{
 		return;
@@ -46,23 +49,50 @@ void USmashGameInstance::BeginLoadingScreen(const FString& MapName)
 	// LOADING SCREEN - CREATE BACKGROUND BRUSH
 
 	LoadingScreen.bAutoCompleteWhenLoadingCompletes = true;
-	LoadingScreen.MinimumLoadingScreenDisplayTime = 1.0f; // Set the minimum display time for the loading screen (in seconds)
-	LoadingScreen.WidgetLoadingScreen =
-		SNew(SBorder)
-		.BorderBackgroundColor(FLinearColor::Black)
-		.HAlign(HAlign_Center)
-		.VAlign(VAlign_Center)
-		[
-			SNew(STextBlock)
-				.Text(FText::FromString(TEXT("LOADING...")))
-		];
+	LoadingScreen.MinimumLoadingScreenDisplayTime = 10.0f; // Set the minimum display time for the loading screen (in seconds)
 	LoadingBackgroundBrush = MakeShared<FSlateBrush>();
 
 	LoadingBackgroundBrush->SetResourceObject(LoadingBackgroundTexture);
 	LoadingBackgroundBrush->ImageSize = FVector2D(1920.0f, 1080.0f);
 	LoadingScreen.WidgetLoadingScreen =
-		SNew(SImage)
-		.Image(LoadingBackgroundBrush.Get());
+		SNew(SOverlay)
+
+		+ SOverlay::Slot()
+		[
+			SNew(SImage)
+				.Image(LoadingBackgroundBrush.Get())
+		]
+
+		// LOADING SCREEN - TEXT + BAR
+		+ SOverlay::Slot()
+		.HAlign(HAlign_Right)
+		.VAlign(VAlign_Bottom)
+		.Padding(40.0f)
+		[
+			SNew(SVerticalBox)
+
+				+ SVerticalBox::Slot()
+				.AutoHeight()
+				.HAlign(HAlign_Right)
+				[
+					SNew(STextBlock)
+						.Text(FText::FromString(TEXT("LOADING...")))
+				]
+
+				+ SVerticalBox::Slot()
+				.AutoHeight()
+				.HAlign(HAlign_Right)
+				.Padding(0.0f, 8.0f, 0.0f, 0.0f)
+				[
+					SNew(SBox)
+						.WidthOverride(180.0f)
+						.HeightOverride(8.0f)
+						[
+							SNew(SColorBlock)
+								.Color(FLinearColor::White)
+						]
+				]
+		];
 	if (!GetMoviePlayer())
 		{
 		UE_LOG(LogTemp, Warning, TEXT("Movie Player is not available"));
