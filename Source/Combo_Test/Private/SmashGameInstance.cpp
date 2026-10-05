@@ -51,7 +51,10 @@ void USmashGameInstance::BeginLoadingScreen(const FString& MapName)
 	LoadingScreen.bAutoCompleteWhenLoadingCompletes = true;
 	LoadingScreen.MinimumLoadingScreenDisplayTime = 10.0f; // Set the minimum display time for the loading screen (in seconds)
 	LoadingBackgroundBrush = MakeShared<FSlateBrush>();
-
+	GetMoviePlayer()->OnMoviePlaybackTick().AddUObject(
+		this,
+		&USmashGameInstance::UpdateLoadingAnimation
+	);
 	LoadingBackgroundBrush->SetResourceObject(LoadingBackgroundTexture);
 	LoadingBackgroundBrush->ImageSize = FVector2D(1920.0f, 1080.0f);
 	LoadingScreen.WidgetLoadingScreen =
@@ -87,9 +90,29 @@ void USmashGameInstance::BeginLoadingScreen(const FString& MapName)
 					SNew(SBox)
 						.WidthOverride(180.0f)
 						.HeightOverride(8.0f)
+						.Clipping(EWidgetClipping::ClipToBounds)
 						[
-							SNew(SColorBlock)
-								.Color(FLinearColor::White)
+							SNew(SOverlay)
+
+								// BAR BACKGROUND
+								+ SOverlay::Slot()
+								[
+									SNew(SColorBlock)
+										.Color(FLinearColor(0.1f, 0.1f, 0.1f, 0.8f))
+								]
+
+								// MOVING WHITE SEGMENT
+								+ SOverlay::Slot()
+								.HAlign(HAlign_Left)
+								[
+									SAssignNew(LoadingBarWidget, SBox)
+										.WidthOverride(40.0f)
+										.HeightOverride(8.0f)
+										[
+											SNew(SColorBlock)
+												.Color(FLinearColor::White)
+										]
+								]
 						]
 				]
 		];
@@ -103,11 +126,26 @@ void USmashGameInstance::BeginLoadingScreen(const FString& MapName)
 	GetMoviePlayer()->SetupLoadingScreen(LoadingScreen);
 	GetMoviePlayer()->PlayMovie();
 	UE_LOG(LogTemp, Warning, TEXT("Movie Player Play Called"));
-
-		
-		
-	
 }
+	
+void USmashGameInstance::UpdateLoadingAnimation(float DeltaTime)
+{
+	LoadingBarOffset += DeltaTime * 14.0f;
+
+		if (LoadingBarOffset > 140.0f)
+		{
+			LoadingBarOffset = 0.0f;
+		}
+
+		// LOADING SCREEN - MOVE BAR
+		if (LoadingBarWidget.IsValid())
+		{
+			LoadingBarWidget->SetRenderTransform(
+				FVector2D(LoadingBarOffset, 0.0f)
+			);
+		}
+}
+
 void USmashGameInstance::EndLoadingScreen(UWorld* LoadedWorld)
 {
 	// End the loading screen
