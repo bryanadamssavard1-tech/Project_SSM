@@ -1,38 +1,59 @@
+
 #include "SmashGameInstance.h"
 
 #include "MoviePlayer.h"
 #include "UObject/UObjectGlobals.h"
 #include "Engine/Texture2D.h"
-#include "Widgets/Layout/SBorder.h"
-// SLATE
+#include "Misc/Paths.h"
+
+// ============================================================
+// SLATE - BASIC WIDGETS
+// ============================================================
+
 #include "Widgets/SOverlay.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/Text/STextBlock.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Layout/SBox.h"
+#include "Widgets/Layout/SBorder.h"
+#include "Widgets/Layout/SScaleBox.h"
+#include "Widgets/Layout/SUniformGridPanel.h"
 #include "Widgets/Colors/SColorBlock.h"
 #include "Widgets/Notifications/SProgressBar.h"
-#include "Misc/Paths.h"
-// STYLE
+
+// ============================================================
+// SLATE - STYLE
+// ============================================================
+
 #include "Styling/SlateBrush.h"
 #include "Styling/CoreStyle.h"
 
+
 // ============================================================
-// GAME INSTANCE - INIT
+// 01 - GAME INSTANCE INITIALIZATION
+//
+// Cette fonction est appelée lorsque le GameInstance démarre.
+// On charge ici les textures principales du loading screen
+// et on connecte les événements de changement de map.
 // ============================================================
 
 void USmashGameInstance::Init()
 {
 	Super::Init();
 
+
 	// --------------------------------------------------------
-	// LOADING SCREEN - PRELOAD BACKGROUND TEXTURE
+	// LOAD DEFAULT BACKGROUND
+	//
+	// Pour l'instant on utilise une seule image.
+	// Plus tard chaque stage pourra avoir son propre background.
 	// --------------------------------------------------------
 
 	LoadingBackgroundTexture = LoadObject<UTexture2D>(
 		nullptr,
 		TEXT("/Game/Project/UI/LoadingScreen/lightning-mcqueen--26021.lightning-mcqueen--26021")
 	);
+
 
 	if (LoadingBackgroundTexture)
 	{
@@ -41,7 +62,7 @@ void USmashGameInstance::Init()
 		UE_LOG(
 			LogTemp,
 			Warning,
-			TEXT("Loading background texture loaded successfully")
+			TEXT("Loading Screen: Background loaded")
 		);
 	}
 	else
@@ -49,13 +70,41 @@ void USmashGameInstance::Init()
 		UE_LOG(
 			LogTemp,
 			Error,
-			TEXT("FAILED to load loading background texture")
+			TEXT("Loading Screen: Background NOT found")
 		);
 	}
 
 
 	// --------------------------------------------------------
-	// LOADING SCREEN - MAP EVENTS
+	// LOAD CENTER ENERGY SLASH
+	//
+	// IMPORTANT:
+	// Modifie ce chemin si ta texture n'est pas située ici.
+	// --------------------------------------------------------
+
+	CenterSlashTexture = LoadObject<UTexture2D>(
+		nullptr,
+		TEXT("/Game/Project/UI/LoadingScreen/FX/T_UI_CenterSlash.T_UI_CenterSlash")
+	);
+
+
+	if (CenterSlashTexture)
+	{
+		CenterSlashTexture->UpdateResource();
+
+		UE_LOG(
+			LogTemp,
+			Warning,
+			TEXT("Loading Screen: Center slash loaded")
+		);
+	}
+
+
+	// --------------------------------------------------------
+	// REGISTER MAP EVENTS
+	//
+	// PreLoadMap = juste avant le changement de niveau.
+	// PostLoadMapWithWorld = lorsque le niveau est prêt.
 	// --------------------------------------------------------
 
 	FCoreUObjectDelegates::PreLoadMap.AddUObject(
@@ -71,43 +120,46 @@ void USmashGameInstance::Init()
 
 
 // ============================================================
-// LOADING SCREEN - BEGIN
+// 02 - BEGIN LOADING SCREEN
+//
+// Construit et démarre tout le loading screen.
 // ============================================================
-
 void USmashGameInstance::BeginLoadingScreen(const FString& MapName)
 {
-	// --------------------------------------------------------
-	// ONLY SHOW LOADING SCREEN FOR "test" MAP
-	// --------------------------------------------------------
-// ============================================================
-	// LOADING SCREEN - ONLY COMBAT MAPS
-	// ============================================================
+	// ========================================================
+	// 01 - MAP FILTER
+	//
+	// Le loading screen doit fonctionner seulement
+	// pour la map de combat.
+	// ========================================================
 
 	if (!MapName.Contains(TEXT("Final_Arena")))
 	{
+		// ----------------------------------------------------
+		// IMPORTANT :
+		// Si on va vers le menu de sélection,
+		// on s'assure qu'aucun MoviePlayer ne reste actif.
+		// ----------------------------------------------------
+
+		if (GetMoviePlayer() && GetMoviePlayer()->IsMovieCurrentlyPlaying())
+		{
+			GetMoviePlayer()->StopMovie();
+		}
+
 		return;
 	}
 
 
-
-	UE_LOG(
-		LogTemp,
-		Warning,
-		TEXT("LOADING SCREEN STARTED - Map: %s"),
-		*MapName
-	);
-
-
-	// --------------------------------------------------------
-	// CHECK MOVIE PLAYER
-	// --------------------------------------------------------
+	// ========================================================
+	// 02 - CHECK MOVIE PLAYER
+	// ========================================================
 
 	if (!GetMoviePlayer())
 	{
 		UE_LOG(
 			LogTemp,
 			Error,
-			TEXT("Movie Player is NOT available")
+			TEXT("Loading Screen: MoviePlayer unavailable")
 		);
 
 		return;
@@ -116,36 +168,52 @@ void USmashGameInstance::BeginLoadingScreen(const FString& MapName)
 	UE_LOG(
 		LogTemp,
 		Warning,
-		TEXT("Movie Player is available")
+		TEXT("Loading Screen starting for: %s"),
+		*MapName
 	);
-
-
-
-	// --------------------------------------------------------
-	// CREATE LOADING SCREEN SETTINGS
-	// --------------------------------------------------------
+	// ========================================================
+	// 03 - LOADING SCREEN SETTINGS
+	// ========================================================
 
 	FLoadingScreenAttributes LoadingScreen;
 
-	// ============================================================
-	// LOADING SCREEN - BEHAVIOR
-	// ============================================================
 
-	// Ferme automatiquement le loading lorsque la map est prête
+	// Ferme automatiquement lorsque la map est chargée.
 	LoadingScreen.bAutoCompleteWhenLoadingCompletes = true;
 
-	// IMPORTANT : ne pas attendre StopMovie() manuellement
+
+	// Ne nécessite pas StopMovie() manuellement.
 	LoadingScreen.bWaitForManualStop = false;
 
-	// Garde quand même le loading screen minimum 10 secondes
+
+	// Garde le loading screen au moins 10 secondes.
 	LoadingScreen.MinimumLoadingScreenDisplayTime = 10.0f;
 
 
-	// --------------------------------------------------------
-	// CREATE BACKGROUND BRUSH
-	// --------------------------------------------------------
+	// ========================================================
+	// 04 - FORMAT STAGE NAME
+	//
+	// Final_Arena devient FINAL ARENA.
+	// ========================================================
+
+	FString StageName = MapName;
+
+	StageName = FPaths::GetBaseFilename(StageName);
+
+	StageName.ReplaceInline(
+		TEXT("_"),
+		TEXT(" ")
+	);
+
+	StageName = StageName.ToUpper();
+
+
+	// ========================================================
+	// 05 - CREATE BACKGROUND BRUSH
+	// ========================================================
 
 	LoadingBackgroundBrush = MakeShared<FSlateBrush>();
+
 
 	if (LoadingBackgroundTexture)
 	{
@@ -154,605 +222,1016 @@ void USmashGameInstance::BeginLoadingScreen(const FString& MapName)
 		);
 	}
 
+
 	LoadingBackgroundBrush->ImageSize =
 		FVector2D(
 			1920.0f,
 			1080.0f
 		);
-	// ============================================================
-// LOADING SCREEN - FORMAT STAGE NAME
-// ============================================================
 
-	FString StageName = MapName;
-
-	// Enlève le chemin si Unreal en fournit un
-	StageName = FPaths::GetBaseFilename(StageName);
-
-	// Remplace les "_" par des espaces
-	StageName.ReplaceInline(TEXT("_"), TEXT(" "));
-
-	// Met le nom en majuscules
-	StageName = StageName.ToUpper();
 
 	// ========================================================
-	// CREATE LOADING SCREEN UI
+	// 06 - CREATE CENTER SLASH BRUSH
 	// ========================================================
 
-	// ============================================================
-// CREATE PLAYER PORTRAIT BRUSHES
-// ============================================================
+	CenterSlashBrush.Reset();
 
-// PLAYER 1
-	if (Player1Portrait)
+
+	if (CenterSlashTexture)
 	{
-		Player1PortraitBrush = MakeShared<FSlateBrush>();
+		CenterSlashBrush = MakeShared<FSlateBrush>();
 
-		Player1PortraitBrush->SetResourceObject(
-			Player1Portrait
+		CenterSlashBrush->SetResourceObject(
+			CenterSlashTexture
 		);
 
-		Player1PortraitBrush->ImageSize =
+		CenterSlashBrush->ImageSize =
 			FVector2D(
-				420.0f,
-				420.0f
+				500.0f,
+				800.0f
 			);
 	}
 
 
-	// PLAYER 2
-	if (Player2Portrait)
-	{
-		Player2PortraitBrush = MakeShared<FSlateBrush>();
+	// ========================================================
+	// 07 - PREPARE PLAYER DATA
+	//
+	// Maximum 4 joueurs.
+	// ========================================================
 
-		Player2PortraitBrush->SetResourceObject(
-			Player2Portrait
+	const int32 PlayerCount =
+		FMath::Clamp(
+			LoadingPlayers.Num(),
+			0,
+			4
 		);
 
-		Player2PortraitBrush->ImageSize =
-			FVector2D(
-				420.0f,
-				420.0f
-			);
+
+	// ========================================================
+	// 08 - CREATE PLAYER PORTRAIT BRUSHES
+	// ========================================================
+
+	PlayerPortraitBrushes.Empty();
+
+	PlayerPortraitBrushes.SetNum(
+		PlayerCount
+	);
+
+
+	for (int32 Index = 0; Index < PlayerCount; Index++)
+	{
+		if (LoadingPlayers[Index].Portrait)
+		{
+			PlayerPortraitBrushes[Index] =
+				MakeShared<FSlateBrush>();
+
+			PlayerPortraitBrushes[Index]
+				->SetResourceObject(
+					LoadingPlayers[Index].Portrait
+				);
+
+			PlayerPortraitBrushes[Index]
+				->ImageSize =
+				FVector2D(
+					700.0f,
+					700.0f
+				);
+		}
 	}
 
 
-	// ============================================================
-	// CREATE LOADING SCREEN UI
-	// ============================================================
+	// ========================================================
+	// 09 - PLAYER COLORS
+	//
+	// Chaque joueur possède sa propre couleur.
+	// ========================================================
+
+	const FLinearColor PlayerColors[4] =
+	{
+		FLinearColor(
+			1.00f,
+			0.10f,
+			0.03f,
+			1.00f
+		),
+
+		FLinearColor(
+			0.05f,
+			0.40f,
+			1.00f,
+			1.00f
+		),
+
+		FLinearColor(
+			0.15f,
+			0.95f,
+			0.35f,
+			1.00f
+		),
+
+		FLinearColor(
+			0.85f,
+			0.25f,
+			1.00f,
+			1.00f
+		)
+	};
+
+
+	// ========================================================
+	// 10 - HELPER : CREATE PLAYER CARD
+	//
+	// Cette fonction locale génère automatiquement une carte
+	// complète pour n'importe quel joueur.
+	//
+	// Elle contient :
+	// - glow
+	// - portrait
+	// - numéro du joueur
+	// - nom du personnage
+	// ========================================================
+
+	auto CreatePlayerCard =
+		[this, &PlayerColors](
+			int32 Index,
+			float CardWidth,
+			float CardHeight
+			)
+		-> TSharedRef<SWidget>
+		{
+			// ----------------------------------------------------
+			// SAFETY CHECK
+			// ----------------------------------------------------
+
+			if (!LoadingPlayers.IsValidIndex(Index))
+			{
+				return
+					SNew(SBox);
+			}
+
+
+			// ----------------------------------------------------
+			// PLAYER DISPLAY NUMBER
+			// ----------------------------------------------------
+
+			const FString PlayerLabel =
+				FString::Printf(
+					TEXT("PLAYER %d"),
+					Index + 1
+				);
+
+
+			// ----------------------------------------------------
+			// CHARACTER NAME
+			// ----------------------------------------------------
+
+			FString CharacterName =
+				LoadingPlayers[Index].CharacterName;
+
+
+			if (CharacterName.IsEmpty())
+			{
+				CharacterName =
+					TEXT("FIGHTER");
+			}
+
+
+			CharacterName =
+				CharacterName.ToUpper();
+
+
+			// ----------------------------------------------------
+			// PORTRAIT BRUSH
+			// ----------------------------------------------------
+
+			const FSlateBrush* PortraitBrush =
+				nullptr;
+
+
+			if (
+				PlayerPortraitBrushes.IsValidIndex(Index)
+				&&
+				PlayerPortraitBrushes[Index].IsValid()
+				)
+			{
+				PortraitBrush =
+					PlayerPortraitBrushes[Index].Get();
+			}
+
+
+			// ----------------------------------------------------
+			// PLAYER COLOR
+			// ----------------------------------------------------
+
+			const FLinearColor AccentColor =
+				PlayerColors[Index];
+
+
+			// ----------------------------------------------------
+			// CREATE CARD
+			// ----------------------------------------------------
+
+			return
+
+				SNew(SBox)
+
+				.WidthOverride(
+					CardWidth
+				)
+
+				.HeightOverride(
+					CardHeight
+				)
+
+				[
+
+					SNew(SOverlay)
+
+
+						// ============================================
+						// CARD - DARK BACKGROUND
+						// ============================================
+
+						+SOverlay::Slot()
+						[
+							SNew(SBorder)
+
+								.BorderBackgroundColor(
+									FLinearColor(
+										0.01f,
+										0.01f,
+										0.015f,
+										0.88f
+									)
+								)
+						]
+
+
+					// ============================================
+					// CARD - PLAYER COLOR GLOW
+					// ============================================
+
+					+SOverlay::Slot()
+						[
+							SNew(SBorder)
+
+								.BorderBackgroundColor(
+									FLinearColor(
+										AccentColor.R,
+										AccentColor.G,
+										AccentColor.B,
+										0.18f
+									)
+								)
+						]
+
+
+					// ============================================
+					// CARD - TOP COLOR STRIP
+					// ============================================
+
+					+SOverlay::Slot()
+
+						.VAlign(
+							VAlign_Top
+						)
+
+						[
+							SNew(SBox)
+
+								.HeightOverride(
+									7.0f
+								)
+
+								[
+									SNew(SColorBlock)
+
+										.Color(
+											AccentColor
+										)
+								]
+						]
+
+
+					// ============================================
+					// CARD - PORTRAIT
+					// ============================================
+
+					+SOverlay::Slot()
+
+						.HAlign(
+							HAlign_Fill
+						)
+
+						.VAlign(
+							VAlign_Fill
+						)
+
+						.Padding(
+							10.0f,
+							10.0f,
+							10.0f,
+							100.0f
+						)
+
+						[
+							SNew(SScaleBox)
+
+								.Stretch(
+									EStretch::ScaleToFit
+								)
+
+								[
+									SNew(SImage)
+
+										.Image(
+											PortraitBrush
+										)
+								]
+						]
+
+
+					// ============================================
+					// CARD - BOTTOM NAME PLATE
+					// ============================================
+
+					+SOverlay::Slot()
+
+						.VAlign(
+							VAlign_Bottom
+						)
+
+						[
+							SNew(SBorder)
+
+								.Padding(
+									FMargin(
+										22.0f,
+										12.0f
+									)
+								)
+
+								.BorderBackgroundColor(
+									FLinearColor(
+										0.0f,
+										0.0f,
+										0.0f,
+										0.88f
+									)
+								)
+
+								[
+									SNew(SVerticalBox)
+
+
+										// ------------------------------------
+										// PLAYER NUMBER
+										// ------------------------------------
+
+										+SVerticalBox::Slot()
+
+										.AutoHeight()
+
+										[
+											SNew(STextBlock)
+
+												.Text(
+													FText::FromString(
+														PlayerLabel
+													)
+												)
+
+												.ColorAndOpacity(
+													AccentColor
+												)
+
+												.Font(
+													FCoreStyle::GetDefaultFontStyle(
+														"Bold",
+														15
+													)
+												)
+										]
+
+
+									// ------------------------------------
+									// CHARACTER NAME
+									// ------------------------------------
+
+									+SVerticalBox::Slot()
+
+										.AutoHeight()
+
+										.Padding(
+											0.0f,
+											2.0f,
+											0.0f,
+											0.0f
+										)
+
+										[
+											SNew(STextBlock)
+
+												.Text(
+													FText::FromString(
+														CharacterName
+													)
+												)
+
+												.ColorAndOpacity(
+													FLinearColor::White
+												)
+
+												.Font(
+													FCoreStyle::GetDefaultFontStyle(
+														"Bold",
+														36
+													)
+												)
+										]
+								]
+						]
+				];
+		};
+
+
+	// ========================================================
+	// 11 - CREATE PLAYERS LAYOUT
+	//
+	// Le layout change automatiquement selon le nombre
+	// de joueurs.
+	// ========================================================
+
+	TSharedRef<SOverlay> PlayersOverlay =
+		SNew(SOverlay);
+
+
+	// ========================================================
+	// 11A - ONE PLAYER
+	//
+	// Fighter reveal au centre.
+	// ========================================================
+
+	if (PlayerCount == 1)
+	{
+		PlayersOverlay->AddSlot()
+
+			.HAlign(
+				HAlign_Center
+			)
+
+			.VAlign(
+				VAlign_Center
+			)
+
+			.Padding(
+				0.0f,
+				110.0f,
+				0.0f,
+				120.0f
+			)
+
+			[
+				CreatePlayerCard(
+					0,
+					650.0f,
+					700.0f
+				)
+			];
+	}
+
+
+	// ========================================================
+	// 11B - TWO PLAYERS
+	//
+	// Layout classique P1 VS P2.
+	// ========================================================
+
+	else if (PlayerCount == 2)
+	{
+		// ----------------------------------------------------
+		// PLAYER 1
+		// ----------------------------------------------------
+
+		PlayersOverlay->AddSlot()
+
+			.HAlign(
+				HAlign_Left
+			)
+
+			.VAlign(
+				VAlign_Center
+			)
+
+			.Padding(
+				45.0f,
+				100.0f,
+				0.0f,
+				110.0f
+			)
+
+			[
+				CreatePlayerCard(
+					0,
+					650.0f,
+					690.0f
+				)
+			];
+
+
+		// ----------------------------------------------------
+		// PLAYER 2
+		// ----------------------------------------------------
+
+		PlayersOverlay->AddSlot()
+
+			.HAlign(
+				HAlign_Right
+			)
+
+			.VAlign(
+				VAlign_Center
+			)
+
+			.Padding(
+				0.0f,
+				100.0f,
+				45.0f,
+				110.0f
+			)
+
+			[
+				CreatePlayerCard(
+					1,
+					650.0f,
+					690.0f
+				)
+			];
+
+
+		// ----------------------------------------------------
+		// CENTER ENERGY SLASH
+		// ----------------------------------------------------
+
+		if (CenterSlashBrush.IsValid())
+		{
+			PlayersOverlay->AddSlot()
+
+				.HAlign(
+					HAlign_Center
+				)
+
+				.VAlign(
+					VAlign_Center
+				)
+
+				[
+					SNew(SBox)
+
+						.WidthOverride(
+							350.0f
+						)
+
+						.HeightOverride(
+							730.0f
+						)
+
+						[
+							SNew(SImage)
+
+								.Image(
+									CenterSlashBrush.Get()
+								)
+						]
+				];
+		}
+
+
+		// ----------------------------------------------------
+		// LARGE BACKGROUND VS
+		// ----------------------------------------------------
+
+		PlayersOverlay->AddSlot()
+
+			.HAlign(
+				HAlign_Center
+			)
+
+			.VAlign(
+				VAlign_Center
+			)
+
+			[
+				SNew(STextBlock)
+
+					.Text(
+						FText::FromString(
+							TEXT("VS")
+						)
+					)
+
+					.ColorAndOpacity(
+						FLinearColor(
+							1.0f,
+							1.0f,
+							1.0f,
+							0.10f
+						)
+					)
+
+					.Font(
+						FCoreStyle::GetDefaultFontStyle(
+							"Bold",
+							240
+						)
+					)
+			];
+
+
+		// ----------------------------------------------------
+		// MAIN VS
+		// ----------------------------------------------------
+
+		PlayersOverlay->AddSlot()
+
+			.HAlign(
+				HAlign_Center
+			)
+
+			.VAlign(
+				VAlign_Center
+			)
+
+			[
+				SNew(SBorder)
+
+					.Padding(
+						FMargin(
+							30.0f,
+							14.0f
+						)
+					)
+
+					.BorderBackgroundColor(
+						FLinearColor(
+							0.0f,
+							0.0f,
+							0.0f,
+							0.75f
+						)
+					)
+
+					[
+						SNew(STextBlock)
+
+							.Text(
+								FText::FromString(
+									TEXT("VS")
+								)
+							)
+
+							.ColorAndOpacity(
+								FLinearColor::White
+							)
+
+							.Font(
+								FCoreStyle::GetDefaultFontStyle(
+									"Bold",
+									95
+								)
+							)
+					]
+			];
+	}
+
+
+	// ========================================================
+	// 11C - THREE PLAYERS
+	//
+	// Trois grandes cartes côte à côte.
+	// ========================================================
+
+	else if (PlayerCount == 3)
+	{
+		TSharedRef<SHorizontalBox> ThreePlayerBox =
+			SNew(SHorizontalBox);
+
+
+		for (int32 Index = 0; Index < 3; Index++)
+		{
+			ThreePlayerBox->AddSlot()
+
+				.FillWidth(
+					1.0f
+				)
+
+				.HAlign(
+					HAlign_Center
+				)
+
+				.VAlign(
+					VAlign_Center
+				)
+
+				.Padding(
+					18.0f
+				)
+
+				[
+					CreatePlayerCard(
+						Index,
+						500.0f,
+						650.0f
+					)
+				];
+		}
+
+
+		PlayersOverlay->AddSlot()
+
+			.HAlign(
+				HAlign_Fill
+			)
+
+			.VAlign(
+				VAlign_Center
+			)
+
+			.Padding(
+				35.0f,
+				120.0f,
+				35.0f,
+				120.0f
+			)
+
+			[
+				ThreePlayerBox
+			];
+	}
+
+
+	// ========================================================
+	// 11D - FOUR PLAYERS
+	//
+	// Grille AAA 2 x 2.
+	// ========================================================
+
+	else if (PlayerCount >= 4)
+	{
+		TSharedRef<SUniformGridPanel> FourPlayerGrid =
+			SNew(SUniformGridPanel)
+
+			.SlotPadding(
+				FMargin(
+					15.0f
+				)
+			);
+
+
+		// ----------------------------------------------------
+		// PLAYER 1
+		// ----------------------------------------------------
+
+		FourPlayerGrid->AddSlot(
+			0,
+			0
+		)
+
+			[
+				CreatePlayerCard(
+					0,
+					610.0f,
+					350.0f
+				)
+			];
+
+
+		// ----------------------------------------------------
+		// PLAYER 2
+		// ----------------------------------------------------
+
+		FourPlayerGrid->AddSlot(
+			1,
+			0
+		)
+
+			[
+				CreatePlayerCard(
+					1,
+					610.0f,
+					350.0f
+				)
+			];
+
+
+		// ----------------------------------------------------
+		// PLAYER 3
+		// ----------------------------------------------------
+
+		FourPlayerGrid->AddSlot(
+			0,
+			1
+		)
+
+			[
+				CreatePlayerCard(
+					2,
+					610.0f,
+					350.0f
+				)
+			];
+
+
+		// ----------------------------------------------------
+		// PLAYER 4
+		// ----------------------------------------------------
+
+		FourPlayerGrid->AddSlot(
+			1,
+			1
+		)
+
+			[
+				CreatePlayerCard(
+					3,
+					610.0f,
+					350.0f
+				)
+			];
+
+
+		PlayersOverlay->AddSlot()
+
+			.HAlign(
+				HAlign_Center
+			)
+
+			.VAlign(
+				VAlign_Center
+			)
+
+			.Padding(
+				0.0f,
+				115.0f,
+				0.0f,
+				125.0f
+			)
+
+			[
+				FourPlayerGrid
+			];
+	}
+
+
+	// ========================================================
+	// 12 - FULL AAA LOADING SCREEN
+	// ========================================================
+
 	LoadingScreen.WidgetLoadingScreen =
 
 		SNew(SOverlay)
 
 
-		// ============================================================
-		// 01 - BACKGROUND
-		// ============================================================
+		// ====================================================
+		// BACKGROUND IMAGE
+		// ====================================================
 
 		+SOverlay::Slot()
 		[
 			SNew(SImage)
-				.Image(LoadingBackgroundBrush.Get())
+
+				.Image(
+					LoadingBackgroundBrush.Get()
+				)
 		]
 
 
-		// ============================================================
-		// 02 - CINEMATIC DARK FILTER
-		// ============================================================
+	// ====================================================
+	// CINEMATIC DARK FILTER
+	// ====================================================
 
-		+SOverlay::Slot()
+	+SOverlay::Slot()
 		[
 			SNew(SColorBlock)
+
 				.Color(
 					FLinearColor(
 						0.0f,
 						0.0f,
 						0.0f,
-						0.58f
+						0.52f
 					)
 				)
 		]
 
 
-	// ============================================================
-	// 03 - TOP BLACK CINEMATIC BAR
-	// ============================================================
+	// ====================================================
+	// TOP CINEMATIC BAR
+	// ====================================================
 
 	+SOverlay::Slot()
-		.VAlign(VAlign_Top)
-		[
-			SNew(SBox)
-				.HeightOverride(115.0f)
-				[
-					SNew(SColorBlock)
-						.Color(
-							FLinearColor(
-								0.01f,
-								0.01f,
-								0.01f,
-								0.92f
-							)
-						)
-				]
-		]
 
-
-	// ============================================================
-	// 04 - BOTTOM BLACK CINEMATIC BAR
-	// ============================================================
-
-	+SOverlay::Slot()
-		.VAlign(VAlign_Bottom)
-		[
-			SNew(SBox)
-				.HeightOverride(105.0f)
-				[
-					SNew(SColorBlock)
-						.Color(
-							FLinearColor(
-								0.01f,
-								0.01f,
-								0.01f,
-								0.94f
-							)
-						)
-				]
-		]
-
-
-	// ============================================================
-	// 05 - PLAYER 1 BACK PANEL
-	// ============================================================
-
-	+SOverlay::Slot()
-		.HAlign(HAlign_Left)
-		.VAlign(VAlign_Center)
-		.Padding(
-			45.0f,
-			120.0f,
-			0.0f,
-			100.0f
+		.VAlign(
+			VAlign_Top
 		)
+
 		[
 			SNew(SBox)
-				.WidthOverride(650.0f)
-				.HeightOverride(650.0f)
-				[
-					SNew(SColorBlock)
-						.Color(
-							FLinearColor(
-								0.15f,
-								0.01f,
-								0.01f,
-								0.42f
-							)
-						)
-				]
-		]
 
-
-	// ============================================================
-	// 06 - PLAYER 2 BACK PANEL
-	// ============================================================
-
-	+SOverlay::Slot()
-		.HAlign(HAlign_Right)
-		.VAlign(VAlign_Center)
-		.Padding(
-			0.0f,
-			120.0f,
-			45.0f,
-			100.0f
-		)
-		[
-			SNew(SBox)
-				.WidthOverride(650.0f)
-				.HeightOverride(650.0f)
-				[
-					SNew(SColorBlock)
-						.Color(
-							FLinearColor(
-								0.01f,
-								0.04f,
-								0.18f,
-								0.42f
-							)
-						)
-				]
-		]
-
-
-	// ============================================================
-	// 07 - PLAYER 1 ACCENT STRIP
-	// ============================================================
-
-	+SOverlay::Slot()
-		.HAlign(HAlign_Left)
-		.VAlign(VAlign_Center)
-		.Padding(
-			45.0f,
-			120.0f,
-			0.0f,
-			100.0f
-		)
-		[
-			SNew(SBox)
-				.WidthOverride(9.0f)
-				.HeightOverride(650.0f)
-				[
-					SNew(SColorBlock)
-						.Color(
-							FLinearColor(
-								1.0f,
-								0.06f,
-								0.03f,
-								1.0f
-							)
-						)
-				]
-		]
-
-
-	// ============================================================
-	// 08 - PLAYER 2 ACCENT STRIP
-	// ============================================================
-
-	+SOverlay::Slot()
-		.HAlign(HAlign_Right)
-		.VAlign(VAlign_Center)
-		.Padding(
-			0.0f,
-			120.0f,
-			45.0f,
-			100.0f
-		)
-		[
-			SNew(SBox)
-				.WidthOverride(9.0f)
-				.HeightOverride(650.0f)
-				[
-					SNew(SColorBlock)
-						.Color(
-							FLinearColor(
-								0.08f,
-								0.35f,
-								1.0f,
-								1.0f
-							)
-						)
-				]
-		]
-
-
-	// ============================================================
-	// 09 - PLAYER 1 PORTRAIT
-	// ============================================================
-
-	+SOverlay::Slot()
-		.HAlign(HAlign_Left)
-		.VAlign(VAlign_Center)
-		.Padding(
-			55.0f,
-			100.0f,
-			0.0f,
-			95.0f
-		)
-		[
-			SNew(SBox)
-				.WidthOverride(650.0f)
-				.HeightOverride(650.0f)
-				[
-					SNew(SImage)
-						.Image(
-							Player1PortraitBrush.IsValid()
-							? Player1PortraitBrush.Get()
-							: nullptr
-						)
-				]
-		]
-
-
-	// ============================================================
-	// 10 - PLAYER 2 PORTRAIT
-	// ============================================================
-
-	+SOverlay::Slot()
-		.HAlign(HAlign_Right)
-		.VAlign(VAlign_Center)
-		.Padding(
-			0.0f,
-			100.0f,
-			55.0f,
-			95.0f
-		)
-		[
-			SNew(SBox)
-				.WidthOverride(650.0f)
-				.HeightOverride(650.0f)
-				[
-					SNew(SImage)
-						.Image(
-							Player2PortraitBrush.IsValid()
-							? Player2PortraitBrush.Get()
-							: nullptr
-						)
-				]
-		]
-
-
-	// ============================================================
-	// 11 - HUGE BACKGROUND VS
-	// ============================================================
-
-	+SOverlay::Slot()
-		.HAlign(HAlign_Center)
-		.VAlign(VAlign_Center)
-		[
-			SNew(STextBlock)
-				.Text(
-					FText::FromString(
-						TEXT("VS")
-					)
-				)
-				.ColorAndOpacity(
-					FLinearColor(
-						1.0f,
-						1.0f,
-						1.0f,
-						0.06f
-					)
-				)
-				.Font(
-					FCoreStyle::GetDefaultFontStyle(
-						"Bold",
-						270
-					)
-				)
-		]
-
-
-	// ============================================================
-	// 12 - CENTER VERTICAL LIGHT
-	// ============================================================
-
-	+SOverlay::Slot()
-		.HAlign(HAlign_Center)
-		.VAlign(VAlign_Center)
-		[
-			SNew(SBox)
-				.WidthOverride(3.0f)
-				.HeightOverride(500.0f)
-				[
-					SNew(SColorBlock)
-						.Color(
-							FLinearColor(
-								1.0f,
-								1.0f,
-								1.0f,
-								0.35f
-							)
-						)
-				]
-		]
-
-
-	// ============================================================
-	// 13 - MAIN VS
-	// ============================================================
-
-	+SOverlay::Slot()
-		.HAlign(HAlign_Center)
-		.VAlign(VAlign_Center)
-		[
-			SNew(SBorder)
-
-				.Padding(
-					FMargin(
-						32.0f,
-						18.0f
-					)
-				)
-
-				.BorderBackgroundColor(
-					FLinearColor(
-						0.0f,
-						0.0f,
-						0.0f,
-						0.78f
-					)
+				.HeightOverride(
+					105.0f
 				)
 
 				[
-					SNew(STextBlock)
+					SNew(SColorBlock)
 
-						.Text(
-							FText::FromString(
-								TEXT("VS")
-							)
-						)
-
-						.ColorAndOpacity(
-							FLinearColor::White
-						)
-
-						.Font(
-							FCoreStyle::GetDefaultFontStyle(
-								"Bold",
-								100
-							)
-						)
-				]
-		]
-
-
-	// ============================================================
-	// 14 - PLAYER 1 INFORMATION
-	// ============================================================
-
-	+SOverlay::Slot()
-		.HAlign(HAlign_Left)
-		.VAlign(VAlign_Bottom)
-		.Padding(
-			75.0f,
-			0.0f,
-			0.0f,
-			125.0f
-		)
-		[
-			SNew(SVerticalBox)
-
-				// PLAYER NUMBER
-				+ SVerticalBox::Slot()
-				.AutoHeight()
-				[
-					SNew(STextBlock)
-
-						.Text(
-							FText::FromString(
-								TEXT("PLAYER 1")
-							)
-						)
-
-						.ColorAndOpacity(
+						.Color(
 							FLinearColor(
-								1.0f,
-								0.12f,
-								0.06f,
-								1.0f
-							)
-						)
-
-						.Font(
-							FCoreStyle::GetDefaultFontStyle(
-								"Bold",
-								18
-							)
-						)
-				]
-
-			// TEMP CHARACTER NAME
-			+ SVerticalBox::Slot()
-				.AutoHeight()
-				[
-					SNew(STextBlock)
-
-						.Text(
-							FText::FromString(
-								TEXT("FIGHTER")
-							)
-						)
-
-						.ColorAndOpacity(
-							FLinearColor::White
-						)
-
-						.Font(
-							FCoreStyle::GetDefaultFontStyle(
-								"Bold",
-								44
+								0.005f,
+								0.005f,
+								0.008f,
+								0.93f
 							)
 						)
 				]
 		]
 
 
-	// ============================================================
-	// 15 - PLAYER 2 INFORMATION
-	// ============================================================
+	// ====================================================
+	// BOTTOM CINEMATIC BAR
+	// ====================================================
 
 	+SOverlay::Slot()
-		.HAlign(HAlign_Right)
-		.VAlign(VAlign_Bottom)
-		.Padding(
-			0.0f,
-			0.0f,
-			75.0f,
-			125.0f
+
+		.VAlign(
+			VAlign_Bottom
 		)
+
 		[
-			SNew(SVerticalBox)
+			SNew(SBox)
 
-				// PLAYER NUMBER
-				+ SVerticalBox::Slot()
-				.AutoHeight()
-				.HAlign(HAlign_Right)
+				.HeightOverride(
+					100.0f
+				)
+
 				[
-					SNew(STextBlock)
+					SNew(SColorBlock)
 
-						.Text(
-							FText::FromString(
-								TEXT("PLAYER 2")
-							)
-						)
-
-						.ColorAndOpacity(
+						.Color(
 							FLinearColor(
-								0.15f,
-								0.45f,
-								1.0f,
-								1.0f
-							)
-						)
-
-						.Font(
-							FCoreStyle::GetDefaultFontStyle(
-								"Bold",
-								18
-							)
-						)
-				]
-
-			// TEMP CHARACTER NAME
-			+ SVerticalBox::Slot()
-				.AutoHeight()
-				.HAlign(HAlign_Right)
-				[
-					SNew(STextBlock)
-
-						.Text(
-							FText::FromString(
-								TEXT("FIGHTER")
-							)
-						)
-
-						.ColorAndOpacity(
-							FLinearColor::White
-						)
-
-						.Font(
-							FCoreStyle::GetDefaultFontStyle(
-								"Bold",
-								44
+								0.005f,
+								0.005f,
+								0.008f,
+								0.96f
 							)
 						)
 				]
 		]
 
 
-	// ============================================================
-	// 16 - STAGE CARD
-	// ============================================================
+	// ====================================================
+	// TOP STAGE INFORMATION
+	// ====================================================
 
 	+SOverlay::Slot()
-		.HAlign(HAlign_Center)
-		.VAlign(VAlign_Top)
+
+		.HAlign(
+			HAlign_Center
+		)
+
+		.VAlign(
+			VAlign_Top
+		)
+
 		.Padding(
 			0.0f,
-			25.0f,
+			18.0f,
 			0.0f,
 			0.0f
 		)
+
 		[
 			SNew(SVerticalBox)
 
-				+ SVerticalBox::Slot()
+
+				// ------------------------------------------------
+				// NEXT BATTLE
+				// ------------------------------------------------
+
+				+SVerticalBox::Slot()
+
 				.AutoHeight()
-				.HAlign(HAlign_Center)
+
+				.HAlign(
+					HAlign_Center
+				)
+
 				[
 					SNew(STextBlock)
 
 						.Text(
 							FText::FromString(
-								TEXT("BATTLE STAGE")
+								TEXT("NEXT BATTLE")
 							)
 						)
 
@@ -760,7 +1239,7 @@ void USmashGameInstance::BeginLoadingScreen(const FString& MapName)
 							FLinearColor(
 								0.60f,
 								0.60f,
-								0.60f,
+								0.65f,
 								1.0f
 							)
 						)
@@ -768,18 +1247,31 @@ void USmashGameInstance::BeginLoadingScreen(const FString& MapName)
 						.Font(
 							FCoreStyle::GetDefaultFontStyle(
 								"Bold",
-								13
+								12
 							)
 						)
 				]
 
-			+ SVerticalBox::Slot()
+
+			// ------------------------------------------------
+			// STAGE NAME
+			// ------------------------------------------------
+
+			+SVerticalBox::Slot()
+
 				.AutoHeight()
-				.HAlign(HAlign_Center)
+
+				.HAlign(
+					HAlign_Center
+				)
+
 				.Padding(
 					0.0f,
-					2.0f
+					2.0f,
+					0.0f,
+					0.0f
 				)
+
 				[
 					SNew(STextBlock)
 
@@ -796,84 +1288,131 @@ void USmashGameInstance::BeginLoadingScreen(const FString& MapName)
 						.Font(
 							FCoreStyle::GetDefaultFontStyle(
 								"Bold",
-								31
+								33
 							)
 						)
 				]
 		]
 
 
-	// ============================================================
-	// 17 - BOTTOM LOADING TEXT
-	// ============================================================
+	// ====================================================
+	// PLAYER AREA
+	// ====================================================
 
 	+SOverlay::Slot()
-		.HAlign(HAlign_Center)
-		.VAlign(VAlign_Bottom)
-		.Padding(
-			0.0f,
-			0.0f,
-			0.0f,
-			54.0f
-		)
 		[
-			SNew(STextBlock)
-
-				.Text(
-					FText::FromString(
-						TEXT("PREPARING BATTLE")
-					)
-				)
-
-				.ColorAndOpacity(
-					FLinearColor(
-						0.70f,
-						0.70f,
-						0.70f,
-						1.0f
-					)
-				)
-
-				.Font(
-					FCoreStyle::GetDefaultFontStyle(
-						"Bold",
-						12
-					)
-				)
+			PlayersOverlay
 		]
 
 
-	// ============================================================
-	// 18 - LOADING BAR
-	// ============================================================
+		// ====================================================
+		// BOTTOM LOADING INFORMATION
+		// ====================================================
 
-	+SOverlay::Slot()
-		.HAlign(HAlign_Center)
-		.VAlign(VAlign_Bottom)
+		+SOverlay::Slot()
+
+		.HAlign(
+			HAlign_Center
+		)
+
+		.VAlign(
+			VAlign_Bottom
+		)
+
 		.Padding(
 			0.0f,
 			0.0f,
 			0.0f,
-			30.0f
+			25.0f
 		)
+
 		[
-			SNew(SBox)
+			SNew(SVerticalBox)
 
-				.WidthOverride(500.0f)
 
-				.HeightOverride(5.0f)
+				// ------------------------------------------------
+				// PREPARING BATTLE TEXT
+				// ------------------------------------------------
+
+				+SVerticalBox::Slot()
+
+				.AutoHeight()
+
+				.HAlign(
+					HAlign_Center
+				)
 
 				[
-					SNew(SProgressBar)
+					SNew(STextBlock)
 
-						.Percent(
-							TOptional<float>()
+						.Text(
+							FText::FromString(
+								TEXT("PREPARING BATTLE")
+							)
+						)
+
+						.ColorAndOpacity(
+							FLinearColor(
+								0.72f,
+								0.72f,
+								0.75f,
+								1.0f
+							)
+						)
+
+						.Font(
+							FCoreStyle::GetDefaultFontStyle(
+								"Bold",
+								12
+							)
 						)
 				]
+
+
+			// ------------------------------------------------
+			// LOADING BAR
+			// ------------------------------------------------
+
+			+SVerticalBox::Slot()
+
+				.AutoHeight()
+
+				.HAlign(
+					HAlign_Center
+				)
+
+				.Padding(
+					0.0f,
+					7.0f,
+					0.0f,
+					0.0f
+				)
+
+				[
+					SNew(SBox)
+
+						.WidthOverride(
+							480.0f
+						)
+
+						.HeightOverride(
+							6.0f
+						)
+
+						[
+							SNew(SProgressBar)
+
+								.Percent(
+									TOptional<float>()
+								)
+						]
+				]
 		];
-	// --------------------------------------------------------
-	// SETUP LOADING SCREEN
-	// --------------------------------------------------------
+
+
+	// ========================================================
+	// 13 - SETUP MOVIE PLAYER
+	// ========================================================
 
 	GetMoviePlayer()
 		->SetupLoadingScreen(
@@ -881,9 +1420,9 @@ void USmashGameInstance::BeginLoadingScreen(const FString& MapName)
 		);
 
 
-	// --------------------------------------------------------
-	// START LOADING SCREEN
-	// --------------------------------------------------------
+	// ========================================================
+	// 14 - START LOADING SCREEN
+	// ========================================================
 
 	GetMoviePlayer()
 		->PlayMovie();
@@ -892,34 +1431,56 @@ void USmashGameInstance::BeginLoadingScreen(const FString& MapName)
 	UE_LOG(
 		LogTemp,
 		Warning,
-		TEXT("Movie Player PlayMovie called")
+		TEXT(
+			"Loading Screen started - %d player(s)"
+		),
+		PlayerCount
 	);
 }
 
 
 // ============================================================
-// LOADING SCREEN - UPDATE ANIMATION
+// 15 - END LOADING SCREEN
+//
+// La fermeture est automatique grâce à
+// bAutoCompleteWhenLoadingCompletes.
+//
+// Cette fonction sert principalement au debug.
 // ============================================================
-
-
 
 void USmashGameInstance::EndLoadingScreen(UWorld* LoadedWorld)
 {
-	// ============================================================
+	// ========================================================
 	// LOADING SCREEN - MAP FINISHED
-	// ============================================================
+	// ========================================================
 
-	if (LoadedWorld)
+	if (!LoadedWorld)
 	{
-		UE_LOG(
-			LogTemp,
-			Warning,
-			TEXT("MAP FINISHED LOADING: %s"),
-			*LoadedWorld->GetName()
-		);
+		return;
 	}
 
-	// NE PAS enlever UpdateLoadingAnimation ici.
-	// Le MoviePlayer va fermer automatiquement le loading screen
-	// après le MinimumLoadingScreenDisplayTime.
+	const FString LoadedMapName = LoadedWorld->GetName();
+
+	UE_LOG(
+		LogTemp,
+		Warning,
+		TEXT("Map finished loading: %s"),
+		*LoadedMapName
+	);
+
+
+	// ========================================================
+	// MENU MAP - FORCE RELEASE MOVIE PLAYER
+	//
+	// Si on revient au menu de sélection,
+	// aucun loading screen ne doit garder le contrôle.
+	// ========================================================
+
+	if (!LoadedMapName.Contains(TEXT("Final_Arena")))
+	{
+		if (GetMoviePlayer() && GetMoviePlayer()->IsMovieCurrentlyPlaying())
+		{
+			GetMoviePlayer()->StopMovie();
+		}
+	}
 }
