@@ -8,7 +8,7 @@ public class Combo_Test : ModuleRules
 	{
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 	
-		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore" , "MoviePlayer" ,"Slate","SlateCore"});
+		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore" , "ApplicationCore", "MoviePlayer" ,"Slate","SlateCore"});
 
 		PrivateDependencyModuleNames.AddRange(new string[] {  });
 
