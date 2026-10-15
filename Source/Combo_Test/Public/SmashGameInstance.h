@@ -96,7 +96,27 @@ public:
 	UFUNCTION(BlueprintImplementableEvent, Category = "Local Multiplayer")
 	void OnSmashLocalPlayerCreated(int32 PlayerIndex);
 
+	// ========================================================
+// BLUEPRINT EVENT - CONNECTION STATE CHANGED
+//
+// Appelé lorsqu'une manette déjà associée à un joueur
+// est déconnectée ou reconnectée.
+//
+// PlayerIndex :
+// 1 = P2
+// 2 = P3
+// 3 = P4
+//
+// bIsConnected :
+// true  = connecté
+// false = déconnecté
+// ========================================================
 
+	UFUNCTION(BlueprintImplementableEvent, Category = "Local Multiplayer")
+	void OnSmashLocalPlayerConnectionChanged(
+		int32 PlayerIndex,
+		bool bIsConnected
+	);
 	// ========================================================
 	// LOCAL MULTIPLAYER DATA
 	// ========================================================
