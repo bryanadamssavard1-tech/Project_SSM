@@ -1152,8 +1152,11 @@ void USmashGameInstance::HandleInputDeviceConnectionChange(
 				// ------------------------------------------------
 
 				PlayerData.bIsConnected = false;
-
-
+                OnSmashLocalPlayerConnectionChanged(
+                    PlayerData.PlayerIndex,
+                    false
+                );
+               
 				// ------------------------------------------------
 				// DEBUG
 				// ------------------------------------------------
@@ -1259,7 +1262,10 @@ void USmashGameInstance::HandleInputDeviceConnectionChange(
 			// VRAIE RECONNEXION
 			// ====================================================
 
-			PlayerData.bIsConnected = true;
+            OnSmashLocalPlayerConnectionChanged(
+                PlayerData.PlayerIndex,
+                true
+            );
 
 
 			// ====================================================
@@ -1351,6 +1357,10 @@ void USmashGameInstance::HandleInputDeviceConnectionChange(
 
 	ConnectedPlayers.Add(NewPlayer);
 
+    OnSmashLocalPlayerConnectionChanged(
+        NewPlayerIndex,
+        true
+    );
 
 	// ============================================================
 	// 07 - CRÉER LE LOCAL PLAYER
